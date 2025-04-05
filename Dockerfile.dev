@@ -1,0 +1,34 @@
+# ベースは production 用と同じ Ruby バージョンを利用
+ARG RUBY_VERSION=3.3.7
+FROM ruby:$RUBY_VERSION-slim
+
+# 作業ディレクトリの設定
+WORKDIR /rails
+
+# OS パッケージのインストール（開発に必要なものを含む）
+RUN apt-get update -qq && \
+    apt-get install --no-install-recommends -y \
+      curl \
+      libjemalloc2 \
+      libvips \
+      sqlite3 \
+      nodejs \
+      build-essential \
+      git \
+      libyaml-dev \
+      pkg-config && \
+    rm -rf /var/lib/apt/lists/*
+
+# 開発環境用の環境変数設定
+ENV RAILS_ENV="development" \
+    BUNDLE_PATH="/usr/local/bundle"
+
+# Gemfile と Gemfile.lock を先にコピーし、依存関係をインストール
+COPY Gemfile Gemfile.lock ./
+RUN bundle install
+
+# アプリケーション全体をコピー
+COPY . .
+
+# コンテナ起動時に Rails サーバを起動するコマンド
+CMD ["bin/rails", "server", "-b", "0.0.0.0"]
