@@ -74,7 +74,8 @@ jobs:
           RAILS_ENV: test
         run: |
           bin/rails db:create
-          bin/rails db:schema:load
+          bin/rails db:migrate
+          bin/rails db:test:prepare
 
       - name: Run tests
         env:
