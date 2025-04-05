@@ -4,13 +4,29 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    command: bin/rails server -b 0.0.0.0 -p 3000
     volumes:
       - .:/rails
       - bundle_cache:/usr/local/bundle
     ports:
-      - "3000:3000"
+      - "3001:3001"
     environment:
       - RAILS_ENV=development
+      - PORT=3001
+    command: bin/rails server -b 0.0.0.0 -p 3001
+    depends_on:
+      - css
+
+  # Tailwind CSS ビルド用のサービス
+  css:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - .:/rails
+      - bundle_cache:/usr/local/bundle
+    environment:
+      - RAILS_ENV=development
+    command: sh -c "bundle exec rails tailwindcss:build && echo 'Tailwind CSS built successfully!' && while true; do sleep 10; bundle exec rails tailwindcss:build; done"
+
 volumes:
   bundle_cache:

@@ -1,0 +1,71 @@
+<div id="liff-content" class="max-w-md mx-auto bg-white rounded-xl shadow-md overflow-hidden md:max-w-2xl">
+  <div class="p-8">
+    <div class="uppercase tracking-wide text-sm text-indigo-500 font-semibold">LIFF App</div>
+    <h1 class="mt-2 text-2xl font-bold text-gray-900">ようこそ</h1>
+    <p class="mt-2 text-gray-600">このアプリはLIFFで動作しています。</p>
+
+    <div class="mt-4">
+      <button id="loginButton" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
+        LINEでログイン
+      </button>
+    </div>
+
+    <div id="user-info" class="mt-4 hidden">
+      <div class="border-t pt-4 mt-4">
+        <h2 class="font-semibold">ユーザー情報</h2>
+        <div class="flex items-center mt-2">
+          <img id="user-picture" src="" alt="プロフィール画像" class="w-12 h-12 rounded-full mr-4">
+          <div>
+            <p id="user-name" class="font-medium">名前</p>
+            <p id="user-status" class="text-sm text-gray-500">ステータスメッセージ</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- デバッグ情報 (開発モードのみ表示) -->
+<% if Rails.env.development? %>
+<div class="mt-8 p-4 border rounded-lg bg-gray-50">
+  <h3 class="font-bold text-gray-700">開発モード情報</h3>
+  <p>LIFF ID: <%= @liff_id.presence || '設定されていません' %></p>
+  <p>環境: <%= Rails.env %></p>
+  <p class="mt-2 text-sm text-gray-500">※ LIFFアプリを正しくテストするには、LINEアプリ内または対応ブラウザからアクセスする必要があります。</p>
+</div>
+<% end %>
+
+<script>
+// ログインボタンのイベントリスナーはliff_init.jsに移動しました
+
+// LIFFが初期化された後にユーザー情報を表示する関数
+function displayUserInfo(profile) {
+  if (!profile) return;
+
+  const userInfoElement = document.getElementById('user-info');
+  const userPictureElement = document.getElementById('user-picture');
+  const userNameElement = document.getElementById('user-name');
+  const userStatusElement = document.getElementById('user-status');
+
+  if (userInfoElement && userNameElement) {
+    userInfoElement.classList.remove('hidden');
+
+    if (userPictureElement && profile.pictureUrl) {
+      userPictureElement.src = profile.pictureUrl;
+    } else if (userPictureElement) {
+      userPictureElement.src = 'https://via.placeholder.com/150';
+    }
+
+    if (userNameElement) {
+      userNameElement.textContent = profile.displayName || 'ユーザー';
+    }
+
+    if (userStatusElement) {
+      userStatusElement.textContent = profile.statusMessage || 'ステータスなし';
+    }
+  }
+}
+
+// グローバル関数として公開して、LIFF初期化スクリプトから呼び出せるようにする
+window.displayUserInfo = displayUserInfo;
+</script>

@@ -1,2 +1,23 @@
-#!/usr/bin/env ruby
-exec "./bin/rails", "server", *ARGV
+#!/usr/bin/env bash
+
+# このスクリプトはdocker-composeを実行するラッパー
+
+echo "Starting development environment..."
+
+# 必要に応じてサーバーのPIDファイルを削除
+if [ -f tmp/pids/server.pid ]; then
+  echo "Removing stale server.pid file..."
+  rm tmp/pids/server.pid
+fi
+
+# 既存のコンテナを停止
+echo "Stopping any existing containers..."
+docker compose -f docker-compose.dev.yml down
+
+# Dockerイメージを再ビルド
+echo "Building Docker images..."
+docker compose -f docker-compose.dev.yml build
+
+# Docker Composeを実行
+echo "Starting services..."
+docker compose -f docker-compose.dev.yml up
