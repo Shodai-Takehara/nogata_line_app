@@ -21,6 +21,9 @@ document.addEventListener('DOMContentLoaded', () => {
             statusMessage: '開発モード中'
           };
 
+          // サーバーサイドにプロフィール情報を送信
+          sendProfileToServer(mockProfile);
+
           if (typeof window.displayUserInfo === 'function') {
             window.displayUserInfo(mockProfile);
           }
@@ -75,6 +78,10 @@ document.addEventListener('DOMContentLoaded', () => {
         liff.getProfile()
           .then(profile => {
             console.log('User profile:', profile);
+
+            // サーバーサイドにプロフィール情報を送信
+            sendProfileToServer(profile);
+
             // ユーザープロフィール情報を表示する関数を呼び出す
             if (typeof window.displayUserInfo === 'function') {
               window.displayUserInfo(profile);
@@ -102,4 +109,58 @@ function setupLoginButton() {
       }
     });
   }
+}
+
+// サーバーサイドにプロフィール情報を送信する関数
+function sendProfileToServer(profile) {
+  // CSRFトークンの取得
+  const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+
+  if (!csrfToken) {
+    console.error('CSRF tokenが見つかりません。');
+    return;
+  }
+
+  console.log('プロフィール情報をサーバーに送信します:', profile);
+
+  // サーバーサイドにプロフィール情報を送信
+  fetch('/auth/line/callback', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'X-CSRF-Token': csrfToken
+    },
+    body: JSON.stringify({ line_profile: profile })
+  })
+  .then(response => {
+    const contentType = response.headers.get("content-type");
+    if (!response.ok) {
+      throw new Error(`サーバーからのレスポンスエラー: ${response.status}`);
+    }
+
+    if (contentType && contentType.indexOf("application/json") !== -1) {
+      return response.json();
+    } else {
+      console.log('JSONではないレスポンスを受信しました。リダイレクトします。');
+      window.location.href = '/liff';
+      return { redirect: '/liff' };
+    }
+  })
+  .then(data => {
+    console.log('サーバーサイドでのプロフィール処理が完了しました:', data);
+
+    // 処理成功時の追加処理（必要に応じて）
+    if (data.redirect) {
+      window.location.href = data.redirect;
+    } else {
+      // リダイレクト先が指定されていなければホームページにリダイレクト
+      window.location.href = '/liff';
+    }
+  })
+  .catch(error => {
+    console.error('エラー:', error);
+    // エラー時はホームページに戻る
+    window.location.href = '/liff';
+  });
 }

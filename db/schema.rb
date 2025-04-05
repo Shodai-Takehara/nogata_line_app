@@ -10,5 +10,17 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_04_05_045002) do
+ActiveRecord::Schema[8.0].define(version: 2025_04_05_133605) do
+  create_table "users", force: :cascade do |t|
+    t.string "line_user_id", null: false
+    t.string "name"
+    t.string "profile_image_url"
+    t.string "email"
+    t.string "status_message"
+    t.boolean "is_active", default: true
+    t.datetime "last_login_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["line_user_id"], name: "index_users_on_line_user_id", unique: true
+  end
 end
