@@ -1,14 +1,15 @@
 class SessionsController < ApplicationController
-  skip_before_action :verify_authenticity_token, only: [:create], if: -> { request.format.json? }
+  skip_before_action :verify_authenticity_token, only: [ :create ], if: -> { request.format.json? }
 
   # LINEログイン後のコールバック処理
   def create
     # リクエストのフォーマットに応じてパラメータを取得
-    profile_params = if request.format.json?
-                      params.require(:line_profile).permit(:userId, :displayName, :pictureUrl, :statusMessage)
-                    else
-                      line_user_params
-                    end
+    profile_params =
+      if request.format.json?
+        params.require(:line_profile).permit(:userId, :displayName, :pictureUrl, :statusMessage)
+      else
+        line_user_params
+      end
 
     # IDトークンからユーザー情報を取得し、ユーザーを作成または更新
     @user = User.find_or_create_from_line_profile(profile_params)
