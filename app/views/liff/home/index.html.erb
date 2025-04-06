@@ -4,11 +4,34 @@
     <h1 class="mt-2 text-2xl font-bold text-gray-900">ようこそ</h1>
     <p class="mt-2 text-gray-600">このアプリはLIFFで動作しています。</p>
 
-    <div class="mt-4">
-      <button id="loginButton" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
-        LINEでログイン
-      </button>
-    </div>
+    <% if logged_in? %>
+      <div class="mt-4 bg-green-50 border border-green-200 p-4 rounded-lg">
+        <p class="font-medium text-green-700">ログイン済み</p>
+        <div class="flex items-center mt-2">
+          <% if @current_user.profile_image_url.present? %>
+            <img src="<%= @current_user.profile_image_url %>" alt="プロフィール画像" class="w-12 h-12 rounded-full mr-4">
+          <% else %>
+            <div class="w-12 h-12 rounded-full bg-gray-300 mr-4 flex items-center justify-center">
+              <span class="text-gray-600 font-bold"><%= @current_user.name.first %></span>
+            </div>
+          <% end %>
+          <div>
+            <p class="font-medium"><%= @current_user.name %></p>
+            <% if @current_user.status_message.present? %>
+              <p class="text-sm text-gray-500"><%= @current_user.status_message %></p>
+            <% end %>
+          </div>
+        </div>
+
+        <%= button_to "ログアウト", logout_path, method: :delete, class: "mt-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600", form: { data: { turbo_confirm: "ログアウトしますか？" } } %>
+      </div>
+    <% else %>
+      <div class="mt-4">
+        <button id="loginButton" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
+          LINEでログイン
+        </button>
+      </div>
+    <% end %>
 
     <div id="user-info" class="mt-4 hidden">
       <div class="border-t pt-4 mt-4">
@@ -31,6 +54,11 @@
   <h3 class="font-bold text-gray-700">開発モード情報</h3>
   <p>LIFF ID: <%= @liff_id.presence || '設定されていません' %></p>
   <p>環境: <%= Rails.env %></p>
+  <p>ログイン状態: <%= logged_in? ? 'ログイン済み' : '未ログイン' %></p>
+  <% if logged_in? %>
+    <p>ユーザーID: <%= @current_user.id %></p>
+    <p>LINE User ID: <%= @current_user.line_user_id %></p>
+  <% end %>
   <p class="mt-2 text-sm text-gray-500">※ LIFFアプリを正しくテストするには、LINEアプリ内または対応ブラウザからアクセスする必要があります。</p>
 </div>
 <% end %>
@@ -48,7 +76,10 @@ function displayUserInfo(profile) {
   const userStatusElement = document.getElementById('user-status');
 
   if (userInfoElement && userNameElement) {
+    // ログイン済みの場合はhiddenクラスを削除しない
+    <% unless logged_in? %>
     userInfoElement.classList.remove('hidden');
+    <% end %>
 
     if (userPictureElement && profile.pictureUrl) {
       userPictureElement.src = profile.pictureUrl;

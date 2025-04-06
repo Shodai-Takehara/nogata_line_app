@@ -12,7 +12,15 @@ Rails.application.routes.draw do
   # Defines the root path route ("/")
   # root "posts#index"
 
+  # LINEログイン関連
+  post "auth/line/callback", to: "sessions#create"
+  delete "logout", to: "sessions#destroy"
+
+  # LIFF関連
   namespace :liff do
-    root to: 'home#index'
+    root to: "home#index"
+
+    # LINEログイン後のコールバック
+    get "callback", to: "auth#callback"
   end
 end
