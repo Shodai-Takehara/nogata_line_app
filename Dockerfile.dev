@@ -1,6 +1,5 @@
 # ベースは production 用と同じ Ruby バージョンを利用
-ARG RUBY_VERSION=3.3.7
-FROM ruby:$RUBY_VERSION-slim
+FROM --platform=linux/amd64 ruby:3.3.0-slim
 
 # 作業ディレクトリの設定
 WORKDIR /rails
@@ -28,9 +27,13 @@ ENV RAILS_ENV="development" \
     BUNDLE_PATH="/usr/local/bundle" \
     PATH="/rails/bin:${PATH}"
 
+# プラットフォーム指定を追加
+ENV BUNDLE_FORCE_RUBY_PLATFORM=1
+
 # Gemfile と Gemfile.lock を先にコピーし、依存関係をインストール
 COPY Gemfile Gemfile.lock ./
-RUN bundle install
+RUN bundle config set --local without 'production' && \
+    bundle install
 
 # アプリケーション全体をコピー
 COPY . .

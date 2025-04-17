@@ -12,7 +12,7 @@ services:
     environment:
       - RAILS_ENV=development
       - PORT=3001
-    command: bin/rails server -b 0.0.0.0 -p 3001
+    command: sh -c "rm -f tmp/pids/server.pid && bundle install && bin/rails server -b 0.0.0.0 -p 3001"
     depends_on:
       - css
 
@@ -26,7 +26,9 @@ services:
       - bundle_cache:/usr/local/bundle
     environment:
       - RAILS_ENV=development
-    command: sh -c "bundle exec rails tailwindcss:build && echo 'Tailwind CSS built successfully!' && while true; do sleep 10; bundle exec rails tailwindcss:build; done"
+      - BUNDLE_FORCE_RUBY_PLATFORM=1
+      - DOCKER_DEFAULT_PLATFORM=linux/amd64
+    command: sh -c "rm -f tmp/pids/server.pid && bundle install && bundle exec rails tailwindcss:install && bundle exec rails tailwindcss:build && bundle exec rails assets:precompile && while true; do sleep 10; bundle exec rails tailwindcss:build; done"
 
 volumes:
   bundle_cache:
