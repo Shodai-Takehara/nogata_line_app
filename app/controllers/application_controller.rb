@@ -6,6 +6,8 @@ class ApplicationController < ActionController::Base
 
   helper_method :current_user, :logged_in?
 
+  before_action :set_ngrok_headers
+
   private
 
   def current_user
@@ -20,5 +22,9 @@ class ApplicationController < ActionController::Base
     unless logged_in?
       redirect_to liff_root_path, alert: "ログインが必要です"
     end
+  end
+
+  def set_ngrok_headers
+    response.headers['ngrok-skip-browser-warning'] = 'true' if Rails.env.development?
   end
 end
