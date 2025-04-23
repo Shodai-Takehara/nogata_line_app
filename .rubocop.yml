@@ -8,3 +8,21 @@ inherit_gem: { rubocop-rails-omakase: rubocop.yml }
 # # Use `[a, [b, c]]` not `[ a, [ b, c ] ]`
 # Layout/SpaceInsideArrayLiteralBrackets:
 #   Enabled: false
+
+Style/StringLiterals:
+  EnforcedStyle: single_quotes
+
+Layout/LineLength:
+  Max: 120
+
+Metrics/MethodLength:
+  Max: 20
+
+Metrics/ClassLength:
+  Max: 200
+
+Style/FrozenStringLiteralComment:
+  Enabled: true
+
+Style/Documentation:
+  Enabled: false

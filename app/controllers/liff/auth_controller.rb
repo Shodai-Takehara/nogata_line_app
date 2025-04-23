@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class Liff::AuthController < Liff::BaseController
   # LINEログイン後のコールバック処理
   def callback

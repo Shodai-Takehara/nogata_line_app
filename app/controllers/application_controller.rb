@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class ApplicationController < ActionController::Base
   # Only allow modern browsers supporting webp images, web push, badges, import maps, CSS nesting, and CSS :has.
   # allow_browser versions: :modern
@@ -20,7 +22,7 @@ class ApplicationController < ActionController::Base
 
   def authenticate_user!
     unless logged_in?
-      redirect_to liff_root_path, alert: "ログインが必要です"
+      redirect_to liff_root_path, alert: 'ログインが必要です'
     end
   end
 

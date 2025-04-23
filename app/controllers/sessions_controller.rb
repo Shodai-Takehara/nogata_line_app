@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class SessionsController < ApplicationController
   skip_before_action :verify_authenticity_token, only: [ :create ], if: -> { request.format.json? }
 
@@ -18,14 +20,14 @@ class SessionsController < ApplicationController
     session[:user_id] = @user.id
 
     respond_to do |format|
-      format.html { redirect_to liff_root_path, notice: "ログインしました" }
-      format.json { render json: { status: "success", user: @user, redirect: liff_root_path } }
+      format.html { redirect_to liff_root_path, notice: 'ログインしました' }
+      format.json { render json: { status: 'success', user: @user, redirect: liff_root_path } }
     end
   rescue => e
     Rails.logger.error "ログインエラー: #{e.message}"
     respond_to do |format|
-      format.html { redirect_to liff_root_path, alert: "ログインに失敗しました" }
-      format.json { render json: { status: "error", message: e.message }, status: :unprocessable_entity }
+      format.html { redirect_to liff_root_path, alert: 'ログインに失敗しました' }
+      format.json { render json: { status: 'error', message: e.message }, status: :unprocessable_entity }
     end
   end
 
@@ -34,8 +36,8 @@ class SessionsController < ApplicationController
     session.delete(:user_id)
 
     respond_to do |format|
-      format.html { redirect_to liff_root_path, notice: "ログアウトしました" }
-      format.json { render json: { status: "success", redirect: liff_root_path } }
+      format.html { redirect_to liff_root_path, notice: 'ログアウトしました' }
+      format.json { render json: { status: 'success', redirect: liff_root_path } }
     end
   end
 

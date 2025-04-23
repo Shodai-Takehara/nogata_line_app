@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class User < ApplicationRecord
   validates :line_user_id, presence: true, uniqueness: true
 
@@ -5,12 +7,12 @@ class User < ApplicationRecord
   def self.find_or_create_from_line_profile(profile)
     Rails.logger.info "プロフィール情報: #{profile.inspect}"
 
-    user_id = profile["userId"] || profile[:userId]
+    user_id = profile['userId'] || profile[:userId]
 
     # ユーザーIDが指定されていない場合はエラー
     unless user_id.present?
-      Rails.logger.error "ユーザーID (userId) が指定されていません"
-      raise "ユーザーIDが指定されていません"
+      Rails.logger.error 'ユーザーID (userId) が指定されていません'
+      raise 'ユーザーIDが指定されていません'
     end
 
     # 既存ユーザーを検索
@@ -18,9 +20,9 @@ class User < ApplicationRecord
 
     # 新規ユーザーの場合は作成
     unless user
-      display_name = profile["displayName"] || profile[:displayName] || "名称未設定"
-      picture_url = profile["pictureUrl"] || profile[:pictureUrl]
-      status_message = profile["statusMessage"] || profile[:statusMessage]
+      display_name = profile['displayName'] || profile[:displayName] || '名称未設定'
+      picture_url = profile['pictureUrl'] || profile[:pictureUrl]
+      status_message = profile['statusMessage'] || profile[:statusMessage]
 
       user = new(
         line_user_id: user_id,
@@ -35,9 +37,9 @@ class User < ApplicationRecord
     end
 
     # ログイン時間の更新と既存プロフィール情報の更新
-    display_name = profile["displayName"] || profile[:displayName]
-    picture_url = profile["pictureUrl"] || profile[:pictureUrl]
-    status_message = profile["statusMessage"] || profile[:statusMessage]
+    display_name = profile['displayName'] || profile[:displayName]
+    picture_url = profile['pictureUrl'] || profile[:pictureUrl]
+    status_message = profile['statusMessage'] || profile[:statusMessage]
 
     user.update(
       last_login_at: Time.current,
