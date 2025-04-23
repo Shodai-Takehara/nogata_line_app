@@ -10,7 +10,44 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_04_05_133605) do
+ActiveRecord::Schema[8.0].define(version: 2025_04_23_080125) do
+  create_table "campgrounds", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "location"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_campgrounds_on_name", unique: true
+  end
+
+  create_table "reservation_job_executions", force: :cascade do |t|
+    t.integer "campground_id", null: false
+    t.datetime "executed_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["campground_id", "executed_at"], name: "idx_on_campground_id_executed_at_7955e26cbd", unique: true
+    t.index ["campground_id"], name: "index_reservation_job_executions_on_campground_id"
+  end
+
+  create_table "site_types", force: :cascade do |t|
+    t.string "name", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_site_types_on_name", unique: true
+  end
+
+  create_table "sites", force: :cascade do |t|
+    t.integer "campground_id", null: false
+    t.integer "site_type_id", null: false
+    t.integer "site_no", null: false
+    t.string "name"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["campground_id", "site_no"], name: "index_sites_on_campground_id_and_site_no", unique: true
+    t.index ["campground_id"], name: "index_sites_on_campground_id"
+    t.index ["site_no"], name: "index_sites_on_site_no"
+    t.index ["site_type_id"], name: "index_sites_on_site_type_id"
+  end
+
   create_table "users", force: :cascade do |t|
     t.string "line_user_id", null: false
     t.string "name"
@@ -23,4 +60,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_04_05_133605) do
     t.datetime "updated_at", null: false
     t.index ["line_user_id"], name: "index_users_on_line_user_id", unique: true
   end
+
+  add_foreign_key "reservation_job_executions", "campgrounds"
+  add_foreign_key "sites", "campgrounds"
+  add_foreign_key "sites", "site_types"
 end
