@@ -1,113 +1,99 @@
 # frozen_string_literal: true
 
-require 'mechanize'
-require 'nokogiri'
-
 class FetchCampReservationsJob < ApplicationJob
   queue_as :default
 
   BASE_URL = 'https://nogata-camp.info/reserve'.freeze
 
-  # 引数で日付レンジを渡せるようにオプション化
-  # perform() の引数を省略すると「今日〜来月末」を自動取得します
-  def perform(start_date: Date.today, end_date: Date.today.next_month.end_of_month)
+  def perform(start_date: Time.zone.today, end_date: Time.zone.today.next_month.end_of_month)
     agent = Mechanize.new
     agent.user_agent_alias = 'Windows Chrome'
 
-    # 最初にトップページにアクセスして CSRF／JSESSIONID を取得
-    agent.get("#{BASE_URL}/")
+    # キャンプ場特定（現状1つのみ）
+    campground = Campground.find_by!(name: '直方キャンプ場')
+    execution = ReservationJobExecution.create!(campground: campground, executed_at: Time.zone.now)
 
     (start_date..end_date).each do |date|
-      fetch_for_date(agent, date)
+      fetch_and_save_slots(agent, campground, execution, date)
+    end
+
+    # 全日分のrange集計＆txt出力
+    (start_date..end_date).each do |date|
+      Site.where(campground: campground).order(:site_no).each do |site|
+        slots = ReservationSlot.where(
+          reservation_job_execution: execution,
+          site: site,
+          date: date,
+          status: :open
+        ).order(:time_slot).pluck(:time_slot)
+
+        if slots.empty?
+          output = "#{date.strftime('%Y%m%d')} サイト#{site.site_no} 終日予約不可"
+        else
+          formatted_times = slots.map { |t| t.strftime('%-H:%M') }
+          blocks = []
+          current_block = []
+
+          formatted_times.each do |time|
+            if current_block.empty?
+              current_block << time
+            elsif Time.parse(time) - Time.parse(current_block.last) == 3600
+              current_block << time
+            else
+              blocks << current_block
+              current_block = [ time ]
+            end
+          end
+          blocks << current_block unless current_block.empty?
+          ranges = blocks.map { |blk| "#{blk.first}〜#{blk.last}" }
+          output = "#{date.strftime('%Y%m%d')} サイト#{site.site_no} #{ranges.join(', ')} 予約可"
+        end
+
+        File.open(Rails.root.join('camp.txt'), 'a') { |f| f.puts output }
+      end
     end
   end
 
   private
 
-  def fetch_for_date(agent, date)
-    # タイムスタンプ付きで reserve-site ページを取得
-    params = { reserveDate: date.to_s, _: (Time.now.to_f * 1000).to_i }
-    page   = agent.get("#{BASE_URL}/reserve-site", params)
-    doc    = Nokogiri::HTML(page.body)
-
-    # 日付ヘッダー以降の最初の <tr class="calendar__time">群を切り出し
+  def fetch_and_save_slots(agent, campground, execution, target_date)
+    params = { reserveDate: target_date.to_s, _: (Time.zone.now.to_f * 1000).to_i }
+    page = agent.get("#{BASE_URL}/reserve-site", params)
+    doc = Nokogiri::HTML(page.body)
     tbody = doc.at('table.calendar__site__table tbody')
-    rows = tbody.css('tr.calendar__time')
 
-    Rails.logger.debug "Found #{rows.size} time rows for #{date}"
+    site_map = Site.where(campground: campground).index_by { |s| s.site_no }
 
-    # その日が予約可能かどうかをチェック
-    has_any_open = false
-    rows.each do |row|
-      row.css('td').each do |td|
-        if td['class']&.include?('calendar__time--open')
-          has_any_open = true
-          break
-        end
-      end
-      break if has_any_open
-    end
+    tbody.css('tr.calendar__time').each do |tr|
+      # そのtrの最初のtdのdata-reservestartdatetimeから日付を取得
+      first_td = tr.at('td')
+      next unless first_td
+      reserve_dt = first_td['data-reservestartdatetime']
+      next unless reserve_dt
+      date_str, _ = reserve_dt.split(' ')
+      date = Date.parse(date_str)
+      next unless date == target_date
 
-    unless has_any_open
-      Rails.logger.info "#{date.strftime('%Y%m%d')} 全サイト予約不可"
-      File.open(Rails.root.join('camp.txt'), 'a') do |f|
-        f.puts "#{date.strftime('%Y%m%d')} 全サイト予約不可"
-      end
-      return
-    end
+      tr.css('td').each do |td|
+        reserve_dt = td['data-reservestartdatetime']
+        next unless reserve_dt
+        _, time_str = reserve_dt.split(' ')
+        site_no = td['data-siteid'].to_i
+        site = site_map[site_no]
+        next unless site
 
-    # サイトごとに open セルだけ集める
-    site_times = Hash.new { |h, k| h[k] = [] }
-    rows.each do |tr|
-      tr.css('td').each_with_index do |td, index|
-        next unless td['class']&.include?('calendar__time--open')
-        sid = td['data-siteid'].to_i
         time = td.text.strip
-        site_times[sid] << time
-      end
-    end
+        next if time.empty? || time == '--:--'
+        status = td['class']&.include?('calendar__time--open') ? :open : :close
 
-    Rails.logger.debug "Found available times for sites: #{site_times.keys.join(', ')}"
-
-    # 各サイトの予約可否・時間帯をまとめてログ出力
-    (1..30).each do |sid|
-      times = site_times[sid]
-      next if times.empty?  # 予約不可の場合はスキップ
-
-      # 時間を整形してソート
-      formatted_times = times.map { |t| t.sub(/^0/, '') }.uniq.sort_by { |t| Time.parse(t) }
-
-      # 連続時間帯をまとめる
-      blocks = []
-      current_block = [ formatted_times.first ]
-
-      formatted_times[1..-1].each do |time|
-        if Time.parse(time) - Time.parse(current_block.last) == 3600
-          current_block << time
-        else
-          blocks << current_block
-          current_block = [ time ]
+        ReservationSlot.find_or_create_by!(
+          reservation_job_execution: execution,
+          site: site,
+          date: date,
+          time_slot: time_str
+        ) do |slot|
+          slot.status = status
         end
-      end
-      blocks << current_block unless current_block.empty?
-
-      # 12:00〜21:00の連続した予約可能時間があるかチェック
-      full_day_block = blocks.find do |block|
-        block.first == '12:00' && block.last == '21:00' &&
-        block.size == 10  # 12:00から21:00まで1時間おきに10個の時間帯がある
-      end
-
-      ranges = if full_day_block
-        [ '12:00〜21:00' ]  # 12:00〜21:00の場合はこれのみ出力
-      else
-        blocks.map { |blk| "#{blk.first}〜#{blk.last}" }
-      end
-
-      output = "サイト#{sid} #{ranges.join(', ')} 予約可"
-
-      Rails.logger.info "#{date.strftime('%Y%m%d')} #{output}"
-      File.open(Rails.root.join('camp.txt'), 'a') do |f|
-        f.puts "#{date.strftime('%Y%m%d')} #{output}"
       end
     end
   end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_04_23_080125) do
+ActiveRecord::Schema[8.0].define(version: 2025_04_23_080135) do
   create_table "campgrounds", force: :cascade do |t|
     t.string "name", null: false
     t.string "location"
@@ -26,6 +26,19 @@ ActiveRecord::Schema[8.0].define(version: 2025_04_23_080125) do
     t.datetime "updated_at", null: false
     t.index ["campground_id", "executed_at"], name: "idx_on_campground_id_executed_at_7955e26cbd", unique: true
     t.index ["campground_id"], name: "index_reservation_job_executions_on_campground_id"
+  end
+
+  create_table "reservation_slots", force: :cascade do |t|
+    t.integer "reservation_job_execution_id", null: false
+    t.integer "site_id", null: false
+    t.date "date", null: false
+    t.time "time_slot", null: false
+    t.integer "status", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["reservation_job_execution_id"], name: "index_reservation_slots_on_reservation_job_execution_id"
+    t.index ["site_id", "date", "time_slot", "reservation_job_execution_id"], name: "index_reservation_slots_on_site_and_datetime_and_exec", unique: true
+    t.index ["site_id"], name: "index_reservation_slots_on_site_id"
   end
 
   create_table "site_types", force: :cascade do |t|
@@ -62,6 +75,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_04_23_080125) do
   end
 
   add_foreign_key "reservation_job_executions", "campgrounds"
+  add_foreign_key "reservation_slots", "reservation_job_executions"
+  add_foreign_key "reservation_slots", "sites"
   add_foreign_key "sites", "campgrounds"
   add_foreign_key "sites", "site_types"
 end
