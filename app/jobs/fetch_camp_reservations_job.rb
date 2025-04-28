@@ -150,6 +150,11 @@ class FetchCampReservationsJob < ApplicationJob
     output_camp_txt(slot_map, sites) if Rails.env.development?
   end
 
+  ##
+  # 日付を抽出する
+  #
+  # @param th [Nokogiri::XML::Element]
+  # @return [Date, nil]
   def extract_date_from_th(th)
     return nil unless th
 
