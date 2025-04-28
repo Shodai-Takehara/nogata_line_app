@@ -4,7 +4,7 @@ class ReservationSlot < ApplicationRecord
   belongs_to :reservation_job_execution
   belongs_to :site
 
-  enum :status, { close: 0, open: 1 }
+  enum :status, { close: 0, open: 1, out_of_hours: 2 }
 
   validates :reservation_job_execution_id, presence: true
   validates :site_id, presence: true

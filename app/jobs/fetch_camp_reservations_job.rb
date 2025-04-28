@@ -35,7 +35,8 @@ class FetchCampReservationsJob < ApplicationJob
   # @param end_date [Date] 取得最終日
   # @return [Hash{Date=>Hash{Integer=>Array<Time>}}] 日付・サイトごとの空き時刻マップ
   def parse_and_save_slots(doc, execution, sites, from_date, to_date, end_date)
-    tds = doc.css('tbody tr.calendar__time').css('td')
+    now      = Time.zone.now
+    tds      = doc.css('tbody tr.calendar__time').css('td')
     slot_map = Hash.new { |h, k| h[k] = Hash.new { |h2, k2| h2[k2] = [] } }
     tds.each do |td|
       site_no = td['data-siteid']&.to_i
@@ -57,7 +58,14 @@ class FetchCampReservationsJob < ApplicationJob
       end
       next unless date_in_range?(date, from_date, to_date, end_date)
 
-      status = td['class']&.include?('calendar__time--open') ? :open : :close
+      # 時間外判定
+      status =
+        if date == Time.zone.today && Time.zone.local(now.year, now.month, now.day, h, min) < now
+          :out_of_hours
+        else
+          td['class']&.include?('calendar__time--open') ? :open : :close
+        end
+
       execution.reservation_slots.find_or_create_by!(
         site: site,
         date: date,
@@ -106,9 +114,9 @@ class FetchCampReservationsJob < ApplicationJob
     if slots.empty?
       output = "#{date.strftime('%Y%m%d')} サイト#{site.site_no} 終日予約不可"
     else
+      blocks          = []
+      current_block   = []
       formatted_times = slots.map { |t| t.strftime('%-H:%M') }
-      blocks = []
-      current_block = []
       formatted_times.each_with_index do |time, idx|
         if current_block.empty?
           current_block << time
