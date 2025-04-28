@@ -24,96 +24,86 @@ class FetchCampReservationsJob < ApplicationJob
 
   private
 
-  def extract_date_from_th(th)
-    return nil unless th
+  ##
+  # HTMLから予約スロット情報を抽出し、ReservationSlotを生成する
+  #
+  # @param doc [Nokogiri::HTML::Document] パース済みHTMLドキュメント
+  # @param execution [ReservationJobExecution] ジョブ実行レコード
+  # @param sites [Array<Site>] サイト一覧
+  # @param from_date [Date] 取得開始日
+  # @param to_date [Date] 取得終了日
+  # @param end_date [Date] 取得最終日
+  # @return [Hash{Date=>Hash{Integer=>Array<Time>}}] 日付・サイトごとの空き時刻マップ
+  def parse_and_save_slots(doc, execution, sites, from_date, to_date, end_date)
+    tds = doc.css('tbody tr.calendar__time').css('td')
+    slot_map = Hash.new { |h, k| h[k] = Hash.new { |h2, k2| h2[k2] = [] } }
+    tds.each do |td|
+      site_no = td['data-siteid']&.to_i
+      next unless site_no
 
-    year = th.at('.year')&.text&.strip =~ /(\d{4})年/ ? $1.to_i : Time.zone.today.year
-    if th.at('.month')&.text&.strip =~ /(\d{1,2})月(\d{1,2})日/
-      month = $1.to_i
-      day = $2.to_i
-      Date.new(year, month, day) rescue nil
+      site = sites.find { |s| s.site_no == site_no }
+      next unless site
+
+      datetime_str = td['data-reservestartdatetime']
+      next unless datetime_str
+
+      # 例: "2025/04/26 07:00"
+      if datetime_str =~ /(\d{4})\/(\d{2})\/(\d{2}) (\d{2}):(\d{2})/
+        y, m, d, h, min = $1.to_i, $2.to_i, $3.to_i, $4.to_i, $5.to_i
+        date = Date.new(y, m, d) rescue nil
+        time_slot = Time.parse("2000-01-01 #{h}:#{min}")
+      else
+        next
+      end
+      next unless date_in_range?(date, from_date, to_date, end_date)
+
+      status = td['class']&.include?('calendar__time--open') ? :open : :close
+      execution.reservation_slots.find_or_create_by!(
+        site: site,
+        date: date,
+        time_slot: time_slot
+      ) { |slot| slot.status = status }
+      slot_map[date][site_no] << time_slot if status == :open
+    end
+
+    slot_map
+  end
+
+  ##
+  # camp.txtへの出力を行う
+  #
+  # @param slot_map [Hash{Date=>Hash{Integer=>Array<Time>}}] 日付・サイトごとの空き時刻マップ
+  # @param sites [Array<Site>] サイト一覧
+  def output_camp_txt(slot_map, sites)
+    slot_map.each do |date, site_hash|
+      site_hash.each do |site_no, slots|
+        sorted_slots = slots.sort_by { |t| t.strftime('%H:%M:%S') }
+        site_hash[site_no] = sorted_slots
+        site = sites.find { |s| s.site_no == site_no }
+        write_camp_txt(date, site, sorted_slots)
+      end
     end
   end
 
+  ##
+  # 日付範囲判定
+  #
+  # @param date [Date]
+  # @param from_date [Date]
+  # @param to_date [Date]
+  # @param end_date [Date]
+  # @return [Boolean]
   def date_in_range?(date, from_date, to_date, end_date)
     date && date >= from_date && date <= to_date && date <= end_date
   end
 
-  def fetch_and_save_slots(agent, campground, execution, from_date, to_date, sites, end_date)
-    params = { reserveDate: from_date.to_s, _: (Time.now.to_f * 1000).to_i }
-    page   = agent.get("#{BASE_URL}/reserve-site/selectDate", params)
-    json   = JSON.parse(page.body)
-    html   = json.dig('data', 'reflash')
-    doc    = Nokogiri::HTML(html)
-
-    table = doc.at('table.calendar__site__table')
-    tbody = table&.at('tbody')
-    date_tr_pairs = []
-    return unless tbody
-
-    tds = doc.css('tbody tr.calendar__time').first.css('td')
-    File.open(Rails.root.join('camp.txt'), 'a') { |f| f.puts tds.inspect }
-    date_tr_pairs << [ from_date, tds ]
-    rows = tbody.children.select { |node| node.element? }
-
-    if rows.any? { |row| row.at('th')&.[]('class')&.include?('calendar__change-month') }
-      i = 0
-      while i < rows.size
-        row = rows[i]
-        if row.name == 'tr' && row.at('th')&.[]('class')&.include?('calendar__change-month')
-          date = extract_date_from_th(row.at('th'))
-          i += 1
-          trs = []
-          while i < rows.size && rows[i].name == 'tr' && rows[i]['class'].to_s.include?('calendar__time')
-            trs << rows[i]
-            i += 1
-          end
-          date_tr_pairs << [date, trs]
-        else
-          i += 1
-        end
-      end
-    end
-
-    date_tr_pairs.each do |date, trs|
-      next unless date_in_range?(date, from_date, to_date, end_date)
-      trs.each do |time_row|
-        time = time_row.at('td')&.text&.strip
-        next if time.nil? || time.empty? || time == '--:--'
-
-        normalized_time_slot = Time.zone.parse("2000-01-01 #{time}")
-        time_row.css('td').each_with_index do |td, idx|
-          site_no = td['data-siteid']&.to_i
-          next unless site_no
-
-          site = sites.find { |s| s.site_no == site_no }
-          next unless site
-
-          status = td['class']&.include?('calendar__time--open') ? :open : :close
-          ReservationSlot.find_or_create_by!(
-            reservation_job_execution: execution,
-            site: site,
-            date: date,
-            time_slot: normalized_time_slot
-          ) { |slot| slot.status = status }
-        end
-      end
-      # camp.txt出力
-      sites.each do |site|
-        slots = ReservationSlot.where(
-          reservation_job_execution: execution,
-          site: site,
-          date: date,
-          status: :open
-        ).order(:time_slot).pluck(:time_slot)
-        write_camp_txt(date, site, slots)
-      end
-    end
-  end
-
+  ##
+  # camp.txtへの1行出力
+  #
+  # @param date [Date]
+  # @param site [Site]
+  # @param slots [Array<Time>]
   def write_camp_txt(date, site, slots)
-    return if Rails.env.production?
-
     if slots.empty?
       output = "#{date.strftime('%Y%m%d')} サイト#{site.site_no} 終日予約不可"
     else
@@ -124,13 +114,13 @@ class FetchCampReservationsJob < ApplicationJob
         if current_block.empty?
           current_block << time
         else
-          prev_time = Time.parse(formatted_times[idx - 1])
-          curr_time = Time.parse(time)
+          prev_time = Time.zone.parse(formatted_times[idx - 1])
+          curr_time = Time.zone.parse(time)
           if (curr_time - prev_time) == 3600
             current_block << time
           else
             blocks << current_block
-            current_block = [time]
+            current_block = [ time ]
           end
         end
       end
@@ -139,5 +129,36 @@ class FetchCampReservationsJob < ApplicationJob
       output = "#{date.strftime('%Y%m%d')} サイト#{site.site_no} #{ranges.join(', ')} 予約可"
     end
     File.open(Rails.root.join('camp.txt'), 'a') { |f| f.puts output }
+  end
+
+  ##
+  # メインのスロット取得・保存・出力処理
+  #
+  # @param agent [Mechanize]
+  # @param campground [Campground]
+  # @param execution [ReservationJobExecution]
+  # @param from_date [Date]
+  # @param to_date [Date]
+  # @param sites [Array<Site>]
+  # @param end_date [Date]
+  def fetch_and_save_slots(agent, campground, execution, from_date, to_date, sites, end_date)
+    params   = { reserveDate: from_date.to_s, _: (Time.now.to_f * 1000).to_i }
+    page     = agent.get("#{BASE_URL}/reserve-site/selectDate", params)
+    json     = JSON.parse(page.body)
+    html     = json.dig('data', 'reflash')
+    doc      = Nokogiri::HTML(html)
+    slot_map = parse_and_save_slots(doc, execution, sites, from_date, to_date, end_date)
+    output_camp_txt(slot_map, sites) if Rails.env.development?
+  end
+
+  def extract_date_from_th(th)
+    return nil unless th
+
+    year = th.at('.year')&.text&.strip =~ /(\d{4})年/ ? $1.to_i : Time.zone.today.year
+    if th.at('.month')&.text&.strip =~ /(\d{1,2})月(\d{1,2})日/
+      month = $1.to_i
+      day = $2.to_i
+      Date.new(year, month, day) rescue nil
+    end
   end
 end
