@@ -27,5 +27,5 @@ Style/FrozenStringLiteralComment:
 Style/Documentation:
   Enabled: false
 
-Style/EmptyLineAfterGuardClause:
+Layout/EmptyLineAfterGuardClause:
   Enabled: true
