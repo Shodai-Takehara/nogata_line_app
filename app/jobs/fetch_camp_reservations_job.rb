@@ -76,9 +76,8 @@ class FetchCampReservationsJob < ApplicationJob
   # @param sites [Array<Site>] サイト一覧
   def output_camp_txt(slot_map, sites)
     slot_map.each do |date, site_hash|
-      site_hash.each do |site_no, slots|
+      site_hash.sort_by { |site_no, _| site_no }.each do |site_no, slots|
         sorted_slots = slots.sort_by { |t| t.strftime('%H:%M:%S') }
-        site_hash[site_no] = sorted_slots
         site = sites.find { |s| s.site_no == site_no }
         write_camp_txt(date, site, sorted_slots)
       end
